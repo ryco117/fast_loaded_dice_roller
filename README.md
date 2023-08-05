@@ -1,12 +1,20 @@
 # fast_loaded_dice_roller
 
-### About the project
+## About the project
 
 This is a Rust library and example program meant to help popularize the usage of the novel [Fast Loaded Dice Roller](https://arxiv.org/pdf/2003.03830.pdf)*
 discrete sampling algorithm. It is designed with generality, low dependencies, and efficiency in mind.
 
-### Usage
-The example program can be built with `cargo b --example generator --features="rand"`. Help information is as follows:
+## Usage
+
+### Library
+The library can be added to your existing projects with `cargo add fast_loaded_dice_roller`.
+You can include the optional `rand::ThreadRngCoin` implementation of the `FairCoin` trait by enabling the `rand` feature (e.g., `cargo add fast_loaded_dice_roller --features="rand"`),
+which has a dependency on the crate [rand](https://crates.io/crates/rand).
+
+### Example program
+The example program can be built with `cargo b --example generator --features="rand"`.
+The example can be run with default values, `cargo r --example generator --features="rand"`, but also has the following usage:
 ```
 Rust implementation of the novel Fast Loaded Dice Roller algorithm (https://arxiv.org/pdf/2003.03830.pdf)
 
@@ -21,7 +29,7 @@ Options:
   -V, --version                                        Print version
 ```
 
-### Citation
+## Citation
 \* Original paper:
 ```
 @inproceedings{saad2020fldr,
