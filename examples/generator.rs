@@ -24,7 +24,7 @@ impl Default for Rng {
 }
 
 // Implement the FairCoin trait to use fldr crate.
-impl fldr::FairCoin for Rng {
+impl fast_loaded_dice_roller::FairCoin for Rng {
     fn flip(&mut self) -> bool {
         if self.bits_read == u64::BITS {
             self.random_bits = self.rng.next_u64();
@@ -50,7 +50,7 @@ fn main() {
     let print_histogram = true;
 
     // Let 'er roll!
-    let roller = fldr::Generator::new(&distribution);
+    let roller = fast_loaded_dice_roller::Generator::new(&distribution);
     for _ in 0..roll_count {
         let s = roller.sample(&mut rng);
         if verbose {

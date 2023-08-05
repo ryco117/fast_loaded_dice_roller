@@ -1,4 +1,4 @@
-# Fast Loaded Dice Roller (FLDR)
+# fast_loaded_dice_roller
 
 ### About the project
 

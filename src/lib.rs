@@ -1,8 +1,9 @@
+/// Sampling from the FLDR requires a fair coin, i.e. a random variable that outputs true or false with equal probability.
 pub trait FairCoin {
     fn flip(&mut self) -> bool;
 }
 
-// Use a discrete distribution generator (DDG) tree to sample random discrete items.
+/// Use a discrete-distribution-generator tree to sample random discrete items.
 pub struct Generator {
     bucket_count: usize,
     level_label_matrix: Vec<Vec<usize>>,
