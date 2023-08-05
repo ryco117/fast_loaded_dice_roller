@@ -6,7 +6,20 @@ This is a Rust library and example program meant to help popularize the usage of
 discrete sampling algorithm. It is designed with generality, low dependencies, and efficiency in mind.
 
 ### Usage
-The example program can be run with `cargo r --example generator`.
+The example program can be built with `cargo b --example generator --features="rand"`. Help information is as follows:
+```
+Rust implementation of the novel Fast Loaded Dice Roller algorithm (https://arxiv.org/pdf/2003.03830.pdf)
+
+Usage: generator [OPTIONS]
+
+Options:
+  -r, --roll-count <ROLL_COUNT>                        [default: 100000]
+  -v, --verbose                                        
+  -p, --print-histogram                                
+  -d, --distribution <DISTRIBUTION> <DISTRIBUTION>...  
+  -h, --help                                           Print help
+  -V, --version                                        Print version
+```
 
 ### Citation
 \* Original paper:

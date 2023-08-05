@@ -18,7 +18,10 @@ impl Generator {
     /// The `distribution` must have at least two elements in it.
     #[must_use]
     pub fn new(distribution: &[usize]) -> Self {
-        assert!(distribution.len() >= 2, "The distribution must have at least two elements.");
+        assert!(
+            distribution.len() >= 2,
+            "The distribution must have at least two elements."
+        );
         let bucket_count = distribution.len();
         let sum: usize = distribution.iter().sum();
         let is_power_of_two = sum.is_power_of_two();
@@ -102,6 +105,51 @@ impl Generator {
                 // Increase to the next level in the tree.
                 level += 1;
             }
+        }
+    }
+}
+
+#[cfg(feature = "rand")]
+pub mod rand {
+    use rand::{rngs::ThreadRng, RngCore};
+
+    /// Helper type for performing repeated coin flips.
+    /// Fetches random bits from the PRNG in blocks of 64 bits and return them one at a time.
+    pub struct ThreadRngCoin {
+        rng: ThreadRng,
+        random_bits: u64,
+        bits_read: u32,
+    }
+
+    /// Default to using the local `ThreadRng` instance and assign a random value for `random_bits`.
+    impl Default for ThreadRngCoin {
+        fn default() -> Self {
+            let mut rng = rand::thread_rng();
+            let random_bits = rng.next_u64();
+            Self {
+                rng,
+                random_bits,
+                bits_read: 0,
+            }
+        }
+    }
+
+    /// Implement the `FairCoin` trait in order to be sampled by the `Generator`.
+    impl super::FairCoin for ThreadRngCoin {
+        fn flip(&mut self) -> bool {
+            // If we have read the entire `u64` of random bits, then we need to generate a new block.
+            if self.bits_read == u64::BITS {
+                self.random_bits = self.rng.next_u64();
+                self.bits_read = 0;
+            }
+
+            // Grab the right-most bit and increment the number of bits read.
+            let b = self.random_bits & 1 > 0;
+            self.bits_read += 1;
+
+            // Shift the random bits to the right by one and return the result bit.
+            self.random_bits >>= 1;
+            b
         }
     }
 }
