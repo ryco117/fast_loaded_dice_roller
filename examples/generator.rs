@@ -10,7 +10,7 @@ struct Rng {
     bits_read: u32,
 }
 
-// Default to using the thread RNG and set random starting bits.
+// Default to using the `ThreadRng` and assign initial random bits.
 impl Default for Rng {
     fn default() -> Self {
         let mut rng = rand::thread_rng();
@@ -23,16 +23,20 @@ impl Default for Rng {
     }
 }
 
-// Implement the FairCoin trait to use fldr crate.
+// Implement the `FairCoin` trait in order to sample from the `fast_loaded_dice_roller` crate.
 impl fast_loaded_dice_roller::FairCoin for Rng {
     fn flip(&mut self) -> bool {
+        // If we have read the entire `u64` of random bits, then we need to generate a new one.
         if self.bits_read == u64::BITS {
             self.random_bits = self.rng.next_u64();
             self.bits_read = 0;
         }
 
-        self.bits_read += 1;
+        // Grab the right-most bit and increment the number of bits read.
         let b = self.random_bits & 1 > 0;
+        self.bits_read += 1;
+
+        // Shift the random bits to the right by one and return the result bit.
         self.random_bits >>= 1;
         b
     }
@@ -59,7 +63,7 @@ fn main() {
         histogram[s] += 1;
     }
 
-    // Print results of the sampling as a histogram.
+    // Print the results of the repeated sampling as a histogram.
     if print_histogram {
         println!(
             "Total rolls: {roll_count}\nInitial distribution: {:?}\nHistogram results: {:?}",

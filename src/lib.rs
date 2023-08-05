@@ -1,9 +1,12 @@
-/// Sampling from the FLDR requires a fair coin, i.e. a random variable that outputs true or false with equal probability.
+/// Sampling from the Fast Loaded Dice Roller requires a fair coin, i.e. a random variable that outputs `true` or `false` with equal probability.
+/// This trait describes the interface for a fair coin, but lets the user implement it however they want.
 pub trait FairCoin {
     fn flip(&mut self) -> bool;
 }
 
-/// Use a discrete-distribution-generator tree to sample random discrete items.
+/// The discrete-distribution-generator tree used to randomly sample items with specified weights.
+/// The Fast Loaded Dice Roller algorithm operates on this object to maintain a size O(n)
+/// with the number of bits needed to encode the input distribution.
 pub struct Generator {
     bucket_count: usize,
     level_label_matrix: Vec<Vec<usize>>,
@@ -11,7 +14,7 @@ pub struct Generator {
 }
 
 impl Generator {
-    // Create a new generator for the Fast Loaded Dice Roller algorithm from a discrete distribution of non-negative integer weights.
+    /// Create a new generator for the Fast Loaded Dice Roller algorithm from a discrete distribution of non-negative integer weights.
     #[must_use]
     pub fn new(distribution: &[usize]) -> Self {
         let bucket_count = distribution.len();
@@ -38,7 +41,7 @@ impl Generator {
         let mut level_leaf_count = vec![0; depth];
         let mut level_label_matrix: Vec<_> = std::iter::repeat(vec![0; bucket_count + 1])
             .take(depth)
-            .collect(); // TODO: Use a sparse matrix representation.
+            .collect(); // TODO: Use a sparse matrix representation?
 
         for j in 0..depth {
             let mut label_index = 0;
@@ -63,7 +66,7 @@ impl Generator {
         }
     }
 
-    // Sample a random discrete item from the distribution using the given fair coin.
+    /// Sample a random item from the discrete distribution using a given `FairCoin`.
     pub fn sample(&self, fair_coin: &mut impl FairCoin) -> usize {
         let mut label_index = 0;
         let mut level = 0;
