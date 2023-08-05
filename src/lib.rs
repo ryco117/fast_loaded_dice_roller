@@ -4,7 +4,7 @@ pub trait FairCoin {
     fn flip(&mut self) -> bool;
 }
 
-/// The discrete-distribution-generator tree used to randomly sample items with specified weights.
+/// The discrete-distribution-generator (DDG) tree used to randomly sample items with specified weights.
 /// The Fast Loaded Dice Roller algorithm operates on this object to maintain a size O(n)
 /// with the number of bits needed to encode the input distribution.
 pub struct Generator {
@@ -14,16 +14,20 @@ pub struct Generator {
 }
 
 impl Generator {
-    /// Create a new generator for the Fast Loaded Dice Roller algorithm from a discrete distribution of non-negative integer weights.
+    /// Create a new DDG tree for the Fast Loaded Dice Roller algorithm from a list of non-negative integer weights.
+    /// The `distribution` must have at least two elements in it.
     #[must_use]
     pub fn new(distribution: &[usize]) -> Self {
+        assert!(distribution.len() >= 2, "The distribution must have at least two elements.");
         let bucket_count = distribution.len();
         let sum: usize = distribution.iter().sum();
         let is_power_of_two = sum.is_power_of_two();
 
+        // Get the ceiling of the base 2 logarithm of `sum`.
         let depth: usize = sum.ilog2() as usize + usize::from(!is_power_of_two);
+
         let a: Vec<_> = if is_power_of_two {
-            // Copy the distribution to owned memory.
+            // Copy the existing distribution to owned memory.
             distribution.to_vec()
         } else {
             // Append an element to the distribution to make the new sum a power of two.
@@ -43,6 +47,7 @@ impl Generator {
             .take(depth)
             .collect(); // TODO: Use a sparse matrix representation?
 
+        // Iterate over the levels of the tree.
         for j in 0..depth {
             let mut label_index = 0;
             let level_labels = &mut level_label_matrix[j];
