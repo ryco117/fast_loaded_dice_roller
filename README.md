@@ -9,8 +9,8 @@ discrete sampling algorithm. It is designed with generality, low dependencies, a
 
 ### Library
 The library can be added to your existing projects with `cargo add fast_loaded_dice_roller`.
-You can include the optional `rand::ThreadRngCoin` implementation of the `FairCoin` trait by enabling the `rand` feature (e.g., `cargo add fast_loaded_dice_roller --features="rand"`),
-which has a dependency on the crate [rand](https://crates.io/crates/rand).
+You can include the optional template `rand::RngCoin<R>` implementation of the `FairCoin` trait by enabling the `rand` feature
+(e.g., `cargo add fast_loaded_dice_roller --features="rand"`), which has a dependency on the crate [rand](https://crates.io/crates/rand).
 
 ### Example program
 The example program can be built with `cargo b --example generator --features="rand"`.

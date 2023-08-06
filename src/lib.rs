@@ -1,12 +1,38 @@
-/// Sampling from the Fast Loaded Dice Roller requires a fair coin, i.e. a random variable that outputs `true` or `false` with equal probability.
-/// This trait describes the interface for a fair coin, but lets the user implement it however they want.
+// MIT License
+
+// Copyright (c) 2023 Ryan Andersen
+
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+//! The Fast Loaded Dice Roller (FLDR) algorithm is a space and time efficient algorithm for near-optimal sampling from a weighted discrete distribution.
+//! This crate provides an implementation of the FLDR algorithm that is generic over the type of random number generator (RNG) used;
+//! there is an optional implementation that uses the `rand` crate as a dependency which can be enabled by using the `rand` feature of this crate.
+
+/// Sampling from the FLDR requires a fair coin, i.e. a random variable that outputs `true` or `false` with equal probability.
+/// This trait describes the interface for a fair coin, but lets the user choose the specifics of how to implement it.
 pub trait FairCoin {
     fn flip(&mut self) -> bool;
 }
 
 /// The discrete-distribution-generator (DDG) tree used to randomly sample items with specified weights.
-/// The Fast Loaded Dice Roller algorithm operates on this object to maintain a size O(n)
-/// with the number of bits needed to encode the input distribution.
+/// The FLDR algorithm operates on this object to maintain a size that scales linearly with the number
+/// of bits needed to encode the input distribution.
 pub struct Generator {
     bucket_count: usize,
     level_label_matrix: Vec<Vec<usize>>,
@@ -14,13 +40,14 @@ pub struct Generator {
 }
 
 impl Generator {
-    /// Create a new DDG tree for the Fast Loaded Dice Roller algorithm from a list of non-negative integer weights.
-    /// The `distribution` must have at least two elements in it.
+    /// Create a new DDG tree for the FLDR algorithm from a list of non-negative integer weights.
+    /// # Panics
+    /// Will panic if `distribution` has less than two non-zero weights.
     #[must_use]
     pub fn new(distribution: &[usize]) -> Self {
         assert!(
-            distribution.len() >= 2,
-            "The distribution must have at least two elements."
+            distribution.iter().fold(0, |c, &w| c + usize::from(w > 0)) >= 2,
+            "The distribution must have at least two non-zero weights."
         );
         let bucket_count = distribution.len();
         let sum: usize = distribution.iter().sum();
@@ -45,6 +72,7 @@ impl Generator {
                 .collect()
         };
 
+        // Create dynamic arrays for storing the DDG tree in a compact way.
         let mut level_leaf_count = vec![0; depth];
         let mut level_label_matrix: Vec<_> = std::iter::repeat(vec![0; bucket_count + 1])
             .take(depth)
@@ -58,7 +86,8 @@ impl Generator {
             // Iterate over the labels in the (possibly appended) distribution.
             for (i, &a) in a.iter().enumerate() {
                 // Use the binary expansion of the weight for label i to determine the locations of this label in the tree.
-                // E.g., if the weight is 6 (110 in binary) and the depth is 3, then the label will be a leaf at the first level and the second level
+                // E.g., if the weight is 6 (110 in binary) and the tree depth is 3, then the label will have a leaf at the first and second level.
+                // The intuition is that larger weights will be closer to the root in the tree, and will have more leaves with their label based on their hamming weight.
                 if (a >> (depth - j - 1)) & 1 > 0 {
                     level_leaf_count[j] += 1;
                     level_labels[label_index] = i;
@@ -111,20 +140,20 @@ impl Generator {
 
 #[cfg(feature = "rand")]
 pub mod rand {
-    use rand::{rngs::ThreadRng, RngCore};
+    use rand::{rngs::ThreadRng, Rng};
 
     /// Helper type for performing repeated coin flips.
-    /// Fetches random bits from the PRNG in blocks of 64 bits and return them one at a time.
-    pub struct ThreadRngCoin {
-        rng: ThreadRng,
+    /// Fetches random bits from a given RNG in blocks of 64 bits and return them one at a time.
+    pub struct RngCoin<R: Rng> {
+        rng: R,
         random_bits: u64,
         bits_read: u32,
     }
 
-    /// Default to using the local `ThreadRng` instance and assign a random value for `random_bits`.
-    impl Default for ThreadRngCoin {
-        fn default() -> Self {
-            let mut rng = rand::thread_rng();
+    impl<R: Rng> RngCoin<R> {
+        /// Create a new `RngCoin` instance with the given RNG and assign a random `u64` to `random_bits`.
+        #[must_use]
+        pub fn new(mut rng: R) -> Self {
             let random_bits = rng.next_u64();
             Self {
                 rng,
@@ -134,8 +163,15 @@ pub mod rand {
         }
     }
 
-    /// Implement the `FairCoin` trait in order to be sampled by the `Generator`.
-    impl super::FairCoin for ThreadRngCoin {
+    /// Create a new `RngCoin` and default to using the local `ThreadRng` instance RNG.
+    impl Default for RngCoin<ThreadRng> {
+        fn default() -> Self {
+            RngCoin::new(ThreadRng::default())
+        }
+    }
+
+    /// Implement the `FairCoin` trait so that this struct can be sampled by the FLDR `Generator`.
+    impl<R: Rng> super::FairCoin for RngCoin<R> {
         fn flip(&mut self) -> bool {
             // If we have read the entire `u64` of random bits, then we need to generate a new block.
             if self.bits_read == u64::BITS {
