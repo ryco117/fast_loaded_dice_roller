@@ -176,7 +176,7 @@ pub mod rand {
     /// Helper type for performing repeated coin flips.
     /// Fetches random bits from a given RNG in blocks of 64 bits and return them one at a time.
     pub struct RngCoin<R: Rng> {
-        pub rng: R,
+        rng: R,
         random_bits: u64,
         bits_read: u32,
     }
