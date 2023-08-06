@@ -20,13 +20,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//! The Fast Loaded Dice Roller (FLDR) algorithm is a space and time efficient algorithm for near-optimal sampling from a weighted discrete distribution.
-//! This crate provides an implementation of the FLDR algorithm that is generic over the type of random number generator (RNG) used;
-//! there is an optional implementation that uses the `rand` crate as a dependency which can be enabled by using the `rand` feature of this crate.
+//! # Fast Loaded Dice Roller
+//! The [Fast Loaded Dice Roller (FLDR)](https://arxiv.org/pdf/2003.03830.pdf)* algorithm is a
+//! space and time efficient algorithm for near-optimal sampling from a weighted discrete
+//! distribution. This crate provides an implementation of the FLDR algorithm that is generic over
+//! the type of random number generator (RNG) used; there is an optional implementation,
+//! `rand::RngCoin<R>`, that uses the `rand` crate as a dependency.
+//!
+//! ### * Citation
+//! I neither created nor discovered the FLDR algorithm. This crate is simply an implementation.
+//! ```
+//! @inproceedings{saad2020fldr,
+//!   title           = {The Fast Loaded Dice Roller: A Near-optimal Exact Sampler for Discrete Probability Distributions},
+//!   author          = {Saad, Feras A. and Freer, Cameron E. and Rinard, Martin C. and Mansinghka, Vikash K.},
+//!   booktitle       = {AISTATS 2020: Proceedings of the 23rd International Conference on Artificial Intelligence and Statistics},
+//!   volume          = 108,
+//!   series          = {Proceedings of Machine Learning Research},
+//!   address         = {Palermo, Sicily, Italy},
+//!   publisher       = {PMLR},
+//!   year            = 2020,
+//!   keywords        = {random variate generation, sampling, discrete random variables},
+//!   abstract        = {This paper introduces a new algorithm for the fundamental problem of generating a random integer from a discrete probability distribution using a source of independent and unbiased random coin flips. This algorithm, which we call the Fast Loaded Dice Roller (FLDR), has efficient complexity properties in space and time: the size of the sampler is guaranteed to be linear in the number of bits needed to encode the target distribution and the sampler consumes (in expectation) at most 6.5 bits of entropy more than the information-theoretically minimal rate, independently of the values or size of the target distribution. We present an easy-to-implement, linear-time preprocessing algorithm and a fast implementation of the FLDR using unsigned integer arithmetic. Empirical evaluations establish that the FLDR is 2x--10x faster than multiple baseline algorithms for exact sampling, including the widely-used alias and interval samplers. It also uses up to 10000x less space than the information-theoretically optimal sampler, at the expense of a less than 1.5x runtime overhead.},
+//! }
+//! ```
 
-/// Sampling from the FLDR requires a fair coin, i.e. a random variable that outputs `true` or `false` with equal probability.
-/// This trait describes the interface for a fair coin, but lets the user choose the specifics of how to implement it.
+/// Sampling from the FLDR requires a fair coin, i.e. a random variable that outputs `true` or
+/// `false` with equal probability. This trait describes the interface for a fair coin, but lets
+/// the user choose the specifics of how to implement it.
 pub trait FairCoin {
+    /// A coin flip takes no inputs and returns one of two values with equal probability.
+    /// NOTE: The coin is taken as a mutable reference since implementations will likely need to
+    /// update their internal state in order to sample new random numbers.
     fn flip(&mut self) -> bool;
 }
 
@@ -35,8 +59,7 @@ pub trait FairCoin {
 /// of bits needed to encode the input distribution.
 pub struct Generator {
     bucket_count: usize,
-    level_label_matrix: Vec<Vec<usize>>,
-    level_leaf_count: Vec<usize>,
+    level_label_sparse_matrix: Vec<Vec<usize>>,
 }
 
 impl Generator {
@@ -46,7 +69,7 @@ impl Generator {
     #[must_use]
     pub fn new(distribution: &[usize]) -> Self {
         assert!(
-            distribution.iter().fold(0, |c, &w| c + usize::from(w > 0)) >= 2,
+            distribution.iter().filter(|&&w| w > 0).count() >= 2,
             "The distribution must have at least two non-zero weights."
         );
         let bucket_count = distribution.len();
@@ -54,6 +77,8 @@ impl Generator {
         let is_power_of_two = sum.is_power_of_two();
 
         // Get the ceiling of the base 2 logarithm of `sum`.
+        // This will let us create a binary tree with a depth that is as small as possible while
+        // still being able to represent the sum of the weights.
         let depth: usize = sum.ilog2() as usize + usize::from(!is_power_of_two);
 
         let a: Vec<_> = if is_power_of_two {
@@ -61,6 +86,8 @@ impl Generator {
             distribution.to_vec()
         } else {
             // Append an element to the distribution to make the new sum a power of two.
+            // As we'll see, this is crucial to utilizing unsigned integer arithmetic to build our
+            // DDG tree.
             (0..=bucket_count)
                 .map(|i| {
                     if i < bucket_count {
@@ -72,38 +99,42 @@ impl Generator {
                 .collect()
         };
 
-        // Create dynamic arrays for storing the DDG tree in a compact way.
-        let mut level_leaf_count = vec![0; depth];
-        let mut level_label_matrix: Vec<_> = std::iter::repeat(vec![0; bucket_count + 1])
-            .take(depth)
-            .collect(); // TODO: Use a sparse matrix representation?
+        // Create a matrix to store the labels that occur within each level of the tree.
+        // TODO: This could be made more efficient by having better data locality; a Vec of Vecs is not ideal.
+        let mut level_label_sparse_matrix: Vec<_> = std::iter::repeat(vec![]).take(depth).collect();
 
-        // Iterate over the levels of the tree.
-        for j in 0..depth {
-            let mut label_index = 0;
-            let level_labels = &mut level_label_matrix[j];
-
+        // Iterate over the levels of the DDG tree and populate them with the appropriate entries.
+        for (j, level_labels) in level_label_sparse_matrix.iter_mut().enumerate() {
             // Iterate over the labels in the (possibly appended) distribution.
             for (i, &a) in a.iter().enumerate() {
-                // Use the binary expansion of the weight for label i to determine the locations of this label in the tree.
-                // E.g., if the weight is 6 (110 in binary) and the tree depth is 3, then the label will have a leaf at the first and second level.
-                // The intuition is that larger weights will be closer to the root in the tree, and will have more leaves with their label based on their hamming weight.
+                // Use the binary expansion of the weight for label `i` to determine the locations
+                // of this label in the tree. The sum has been adjusted to be a power of two, so
+                // when dividing each weight by the total to get the probability, the action
+                // amounts to a bit shift. Thus, the probability is encoded in the binary expansion
+                // of the weight.
+                //
+                // E.g., if the tree depth is 4 and the weight is 5 (0101 in binary), then the
+                // label will have a leaf at the second and fourth level. Ignoring backedges, this
+                // represents a probability of 1/4 (second level) + 1/16 (fourth level) = 5/16.
+                // This makes sense given a weight of 5 and a sum upper bounded by 16 (which we
+                // know since the example depth is 4). The intuition is that larger weights will be
+                // closer to the root in the tree, thus more likely to be sampled, and will have
+                // more leaves assigned their label based on their hamming weight.
                 if (a >> (depth - j - 1)) & 1 > 0 {
-                    level_leaf_count[j] += 1;
-                    level_labels[label_index] = i;
-                    label_index += 1;
+                    // Add the label to the current level.
+                    level_labels.push(i);
                 }
             }
         }
 
         Self {
             bucket_count,
-            level_label_matrix,
-            level_leaf_count,
+            level_label_sparse_matrix,
         }
     }
 
     /// Sample a random item from the discrete distribution using a given `FairCoin`.
+    /// The item is returned as an index into the initial input distribution.
     pub fn sample(&self, fair_coin: &mut impl FairCoin) -> usize {
         let mut label_index = 0;
         let mut level = 0;
@@ -113,23 +144,23 @@ impl Generator {
             // Flip a fair coin for random sample outputs.
             let toss = fair_coin.flip();
 
-            // Bit shift the index and add the coin toss to choose a child in the tree.
+            // Bit shift the index and add the coin toss to choose a random child in the tree.
             label_index = (label_index << 1) + usize::from(toss);
 
             // Check the index is within the current tree level.
-            if label_index < self.level_leaf_count[level] {
+            if label_index < self.level_label_sparse_matrix[level].len() {
                 // Check the label here is within the actual distribution and is not the appended value.
-                if self.level_label_matrix[level][label_index] < self.bucket_count {
+                if self.level_label_sparse_matrix[level][label_index] < self.bucket_count {
                     // Return the sampled label.
-                    return self.level_label_matrix[level][label_index];
+                    return self.level_label_sparse_matrix[level][label_index];
                 }
 
                 // Take a back-edge to the root of the tree/graph.
                 label_index = 0;
                 level = 0;
             } else {
-                // Wrap the label index by the level leaf count.
-                label_index -= self.level_leaf_count[level];
+                // Wrap the label index by the level's leaf count.
+                label_index -= self.level_label_sparse_matrix[level].len();
 
                 // Increase to the next level in the tree.
                 level += 1;

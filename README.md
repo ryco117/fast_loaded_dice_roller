@@ -3,7 +3,8 @@
 ## About the project
 
 This is a Rust library and example program meant to help popularize the usage of the novel [Fast Loaded Dice Roller](https://arxiv.org/pdf/2003.03830.pdf)*
-discrete sampling algorithm. It is designed with generality, low dependencies, and efficiency in mind.
+discrete sampling algorithm. It is designed with generality, low dependencies, and efficiency in mind. It is also simple to use, including a
+default implementation of the required `FairCoin` trait, and heavy documentation for the curious.
 
 ## Usage
 
