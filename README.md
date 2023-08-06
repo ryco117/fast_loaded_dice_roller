@@ -30,7 +30,8 @@ Options:
   -V, --version                                        Print version
 ```
 
-## * Citation
+## Citation
+\* Citation for the Fast Loaded Dice Roller algorithm:
 ```
 @inproceedings{saad2020fldr,
 title           = {The Fast Loaded Dice Roller: A Near-optimal Exact Sampler for Discrete Probability Distributions},
