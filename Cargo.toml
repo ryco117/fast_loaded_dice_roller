@@ -1,6 +1,6 @@
 [package]
 name = "fast_loaded_dice_roller"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["Ryan Andersen <ryco117@gmail.com>"]
 description = "Rust implementation of the novel Fast Loaded Dice Roller algorithm (https://arxiv.org/pdf/2003.03830.pdf)"
@@ -17,4 +17,8 @@ clap = { version = "4.3.19", features = ["derive"] }
 
 [[example]]
 name = "generator"
+required-features = ["rand"]
+
+[[test]]
+name = "rand"
 required-features = ["rand"]
