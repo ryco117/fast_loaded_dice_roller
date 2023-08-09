@@ -21,14 +21,16 @@
 // SOFTWARE.
 
 //! # Fast Loaded Dice Roller
-//! The [Fast Loaded Dice Roller (FLDR)](https://arxiv.org/pdf/2003.03830.pdf)[*](#-citation) algorithm is a
-//! space and time efficient algorithm for near-optimal sampling from a weighted discrete
-//! distribution. This crate provides an implementation of the FLDR algorithm that is generic over
-//! the type of random number generator (RNG) used. There is an optional implementation,
-//! `rand::RngCoin<R>`, that uses the `rand` crate as a dependency for convenience.
+//! The [Fast Loaded Dice Roller (FLDR)](https://arxiv.org/pdf/2003.03830.pdf)[\*](#citation)
+//! algorithm is a space and time efficient algorithm for near-optimal sampling from a weighted
+//! discrete distribution. This crate provides an implementation of the FLDR algorithm that is
+//! generic over the type of random number generator (RNG) used. There is an optional
+//! implementation, `rand::RngCoin<R>`, that uses the `rand` crate as a dependency for convenience.
 //!
-//! ### * Citation
+//! ### Citation
 //! I neither created nor discovered the FLDR algorithm. This crate is simply an implementation.
+//!
+//! \* Citation for the Fast Loaded Dice Roller algorithm:
 //! ```text
 //! @inproceedings{saad2020fldr,
 //!   title           = {The Fast Loaded Dice Roller: A Near-optimal Exact Sampler for Discrete Probability Distributions},
@@ -101,8 +103,7 @@ impl Generator {
         };
 
         // Create a matrix to store the labels that occur within each level of the tree,
-        // as well as the number of labels in that level. This is necessary since the tree is
-        // not guaranteed to be full.
+        // as well as the number of labels in that level.
         // TODO: Try to store this matrix in a sparse representation to save space.
         // However, data locality is important for performance, so we'll need to be careful.
         let mut level_label_matrix = vec![0; (a.len() + 1) * depth];
@@ -125,10 +126,14 @@ impl Generator {
                 // closer to the root in the tree, thus more likely to be sampled, and will have
                 // more leaves assigned their label based on their hamming weight.
                 if (w >> (depth - j - 1)) & 1 > 0 {
+                    // Use `k` to index into the start of the level in the matrix.
                     let k = j * (a.len() + 1);
-                    // Store the number of labels in the current level at the start of the level entry.
-                    level_label_matrix[k] += 1;
-                    let count = level_label_matrix[k];
+
+                    // Increase the number of labels in the current level.
+                    let count = {
+                        level_label_matrix[k] += 1;
+                        level_label_matrix[k]
+                    };
 
                     // Add the label to the current level.
                     level_label_matrix[k + count] = i;
@@ -157,6 +162,7 @@ impl Generator {
             // Bit shift the index and add the coin toss to choose a random child in the tree.
             label_index = (label_index << 1) + usize::from(toss);
 
+            // Use `k` to index into the start of the level in the matrix.
             let k = level * (self.adjusted_bucket_count + 1);
 
             // Check the index is within the current tree level.

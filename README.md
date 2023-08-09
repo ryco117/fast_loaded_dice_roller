@@ -2,7 +2,7 @@
 
 ## About the project
 
-This is a Rust library and example program meant to help popularize the usage of the novel [Fast Loaded Dice Roller](https://arxiv.org/pdf/2003.03830.pdf)[*](#citation)
+This is a Rust library and example program meant to help popularize the usage of the novel [Fast Loaded Dice Roller](https://arxiv.org/pdf/2003.03830.pdf)[\*](#citation)
 discrete sampling algorithm. It is designed with generality, low dependencies, and efficiency in mind. Also, it is simple to use, featuring an optional
 default implementation of the required `FairCoin` trait, and heavy documentation of the internal FLDR algorithm for the curious.
 
@@ -23,14 +23,17 @@ Usage: generator [OPTIONS]
 
 Options:
   -r, --roll-count <ROLL_COUNT>                        [default: 100000]
-  -v, --verbose                                        
-  -p, --print-histogram                                
-  -d, --distribution <DISTRIBUTION> <DISTRIBUTION>...  
+  -v, --verbose
+  -p, --print-histogram
+  -d, --distribution <DISTRIBUTION> <DISTRIBUTION>...
   -h, --help                                           Print help
   -V, --version                                        Print version
 ```
+An example of its usage is `cargo r --example generator --features="rand" -- -d 1 2 3 -r 6000`.
 
 ## Citation
+I neither created nor discovered the FLDR algorithm. This crate is simply an implementation.
+
 \* Citation for the Fast Loaded Dice Roller algorithm:
 ```
 @inproceedings{saad2020fldr,
