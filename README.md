@@ -15,19 +15,25 @@ You can include the optional template `rand::RngCoin<R>` implementation of the `
 
 ### Example program
 The example program can be built with `cargo b --example generator --features="rand"`.
-The example can be run with default values, `cargo r --example generator --features="rand"`, but also has the following usage:
+The example can be run with default values, `cargo r --example generator --features="rand"`, and has the following usage:
 ```
 Rust implementation of the novel Fast Loaded Dice Roller algorithm (https://arxiv.org/pdf/2003.03830.pdf)
 
 Usage: generator [OPTIONS]
 
 Options:
-  -r, --roll-count <ROLL_COUNT>                        [default: 100000]
+  -r, --roll-count <ROLL_COUNT>
+          The number of independent samples to take from distribution [default: 100000]
   -v, --verbose
-  -p, --print-histogram
+          Print the results of each sample to their own line
+  -s, --silence-histogram
+          Silence default behavior to print the total results after all sampling
   -d, --distribution <DISTRIBUTION> <DISTRIBUTION>...
-  -h, --help                                           Print help
-  -V, --version                                        Print version
+          The distribution to sample from. Must have at least two non-zero weights
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 An example of its usage is `cargo r --example generator --features="rand" -- -d 1 2 3 -r 6000`.
 
