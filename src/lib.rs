@@ -51,8 +51,8 @@
 /// the user choose the specifics of how to implement it.
 pub trait FairCoin {
     /// A coin flip takes no inputs and returns one of two values with equal probability.
-    /// NOTE: The coin is taken as a mutable reference because implementations will likely need to
-    /// update their internal state in order to sample new random numbers.
+    //  NOTE: The coin is taken as a mutable reference because implementations will likely need to
+    //        update their internal state in order to sample new random numbers.
     fn flip(&mut self) -> bool;
 }
 
@@ -120,12 +120,16 @@ impl Generator {
                 // of the weight.
                 //
                 // E.g., if the tree depth is 4 and the weight is 5 (0101 in binary), then the
-                // label will have a leaf at the second and fourth level. Ignoring back-edges, this
+                // label will have a leaf at the second and fourth level. Ignoring back-edges*, this
                 // represents a probability of 1/4 (second level) + 1/16 (fourth level) = 5/16.
                 // This makes sense given a weight of 5 and a sum upper bounded by 16 (which we
-                // know since the example depth is 4). The intuition is that larger weights will be
+                // know since the example depth is 4, 16=2^4). The intuition is that larger weights will be
                 // closer to the root in the tree, thus more likely to be sampled, and will have
-                // more leaves assigned their label based on their hamming weight.
+                // more levels including the label based on the weights hamming weight.
+                //
+                // *Since we may have added an element to the distribution to make the sum a power
+                // of two, we later use this extra element as a "back-edge" to the root of the tree to
+                // retry the DDG sampling and preserve the distribution among the desired labels.
                 if (w >> (depth - j - 1)) & 1 > 0 {
                     // Use `k` to index into the start of the level in the matrix.
                     let k = j * (a.len() + 1);

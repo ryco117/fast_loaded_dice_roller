@@ -29,15 +29,20 @@ const DEFAULT_ROLL_COUNT: usize = 100_000;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Arguments {
+    /// The number of independent samples to take from distribution.
     #[arg(short, long, default_value_t = DEFAULT_ROLL_COUNT)]
     roll_count: usize,
 
-    #[arg(short, long, default_value_t = false)]
+    /// Print the results of each sample to their own line.
+    #[arg(short, long)]
     verbose: bool,
 
-    #[arg(short, long, default_value_t = true)]
-    print_histogram: bool,
+    /// Silence default behavior to print the total results after all sampling.
+    #[arg(short, long)]
+    silence_histogram: bool,
 
+    /// The distribution to sample from.
+    /// Must have at least two non-zero weights.
     #[arg(short, long, value_parser, num_args = 2..)]
     distribution: Option<Vec<usize>>,
 }
@@ -58,7 +63,7 @@ fn main() {
     let mut histogram = distribution.iter().map(|_| 0usize).collect::<Vec<_>>();
     let roll_count = args.roll_count;
     let verbose = args.verbose;
-    let print_histogram = args.print_histogram;
+    let print_histogram = !args.silence_histogram;
 
     // Let 'er roll!
     let roller = fast_loaded_dice_roller::Generator::new(&distribution);
