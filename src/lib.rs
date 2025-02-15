@@ -59,6 +59,7 @@ pub trait FairCoin {
 /// Represents the discrete-distribution-generator (DDG) tree used to randomly sample items with
 /// specified weights. The FLDR algorithm operates on this object to maintain a size that scales
 /// linearly with the number of bits needed to encode the input distribution.
+#[derive(Clone)]
 pub struct Generator {
     bucket_count: usize,
     adjusted_bucket_count: usize,
