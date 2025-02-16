@@ -29,7 +29,7 @@ Options:
   -s, --silence-histogram
           Silence default behavior to print the total results after all sampling
   -d, --distribution <DISTRIBUTION> <DISTRIBUTION>...
-          The distribution to sample from. Must have at least two non-zero weights
+          The distribution to sample from. Must have at least two non-zero weights. If not provided, the default distribution is [0, 1, 2, 3, 4]
   -h, --help
           Print help
   -V, --version

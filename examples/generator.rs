@@ -43,6 +43,7 @@ struct Arguments {
 
     /// The distribution to sample from.
     /// Must have at least two non-zero weights.
+    /// If not provided, the default distribution is [0, 1, 2, 3, 4].
     #[arg(short, long, value_parser, num_args = 2..)]
     distribution: Option<Vec<usize>>,
 }

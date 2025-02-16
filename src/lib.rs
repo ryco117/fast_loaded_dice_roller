@@ -61,8 +61,13 @@ pub trait FairCoin {
 /// linearly with the number of bits needed to encode the input distribution.
 #[derive(Clone)]
 pub struct Generator {
+    /// The number of labels in the initial distribution.
     bucket_count: usize,
+
+    /// The number of labels in the adjusted distribution (required to be a power of two).
     adjusted_bucket_count: usize,
+
+    /// A matrix representation of the DDG tree that stores the labels at each level of the tree.
     level_label_matrix: Vec<usize>,
 }
 
@@ -200,13 +205,18 @@ pub mod rand {
     /// Helper type for performing repeated coin flips.
     /// Fetches random bits from a given RNG in blocks of 64 bits and return them one at a time.
     pub struct RngCoin<R: Rng> {
+        /// The random number generator used to generate the random bits.
         rng: R,
+
+        /// A block of 64 random bits.
         random_bits: u64,
+
+        /// The number of bits that have been sampled from the current `random_bits`.
         bits_read: u32,
     }
 
     impl<R: Rng> RngCoin<R> {
-        /// Create a new `RngCoin` instance with the given RNG and assign a random `u64` to `random_bits`.
+        /// Create a new `RngCoin` instance with the given RNG.
         #[must_use]
         pub fn new(mut rng: R) -> Self {
             let random_bits = rng.next_u64();
@@ -227,6 +237,7 @@ pub mod rand {
 
     /// Implement the `FairCoin` trait so that this struct can be sampled by the FLDR `Generator`.
     impl<R: Rng> super::FairCoin for RngCoin<R> {
+        /// Return a bit sampled by the random number generator.
         fn flip(&mut self) -> bool {
             // If we have read the entire `u64` of random bits, then we need to generate a new block.
             if self.bits_read == u64::BITS {

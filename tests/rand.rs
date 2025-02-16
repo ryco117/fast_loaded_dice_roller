@@ -19,9 +19,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-use std::time::Instant;
-
-use rand::{distributions::Distribution, rngs::ThreadRng};
+use rand::{distr::Distribution as _, rngs::ThreadRng};
 
 use fast_loaded_dice_roller as fldr;
 
@@ -38,85 +36,6 @@ impl fldr::FairCoin for TestCoin {
     }
 }
 
-// TODO: ? Perhaps comparing the speed against the naive implementation is not reasonable.
-// Test currently fails in release mode with the series of if-else statements out-performing FLDR for the chosen distribution.
-#[ignore]
-#[test]
-fn test_speed() {
-    const ROLL_COUNT: usize = 1_000_000;
-
-    // Store results in a histogram.
-    let mut histogram = [0usize; 10];
-
-    // Perform a pre-determined number of rolls and record the results.
-    let basic_rng_duration = {
-        // Create a new thread-local PRNG.
-        let mut rng = ThreadRng::default();
-
-        // Create a uniform distribution to target with the RNG.
-        let uniform_distribution = rand::distributions::Uniform::new(0., 1.);
-
-        let basic_rng_start = Instant::now();
-        for _ in 0..ROLL_COUNT {
-            let s = uniform_distribution.sample(&mut rng);
-            if s >= 1. {
-                histogram[0] += 1;
-            } else if s >= 0.9777777 {
-                histogram[1] += 1;
-            } else if s >= 0.9333333 {
-                histogram[2] += 1;
-            } else if s >= 0.8666666 {
-                histogram[3] += 1;
-            } else if s >= 0.7777777 {
-                histogram[4] += 1;
-            } else if s >= 0.6666666 {
-                histogram[5] += 1;
-            } else if s >= 0.5333333 {
-                histogram[6] += 1;
-            } else if s >= 0.3777777 {
-                histogram[7] += 1;
-            } else if s >= 0.2 {
-                histogram[8] += 1;
-            } else if s >= 0. {
-                histogram[9] += 1;
-            }
-        }
-        let basic_rng_duration = basic_rng_start.elapsed();
-
-        println!(
-            "Uniform sampling: Time: {:?}, Hist: {:?}",
-            basic_rng_duration, histogram
-        );
-        basic_rng_duration
-    };
-
-    // Reset the histogram.
-    histogram.iter_mut().for_each(|x| *x = 0);
-
-    // Perform a pre-determined number of rolls and record the results.
-    let fldr_rng_start = {
-        // Create a new fair coin.
-        let mut fair_coin = fldr::rand::RngCoin::default();
-        let test_distribution = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        assert_eq!(test_distribution.len(), histogram.len());
-
-        // Create a discrete-distribution-generator from a list of weights.
-        let generator = fldr::Generator::new(&test_distribution);
-
-        let fldr_rng_start = Instant::now();
-        for _ in 0..ROLL_COUNT {
-            let i = generator.sample(&mut fair_coin);
-            histogram[i] += 1;
-        }
-        let fldr_rng_duration = fldr_rng_start.elapsed();
-
-        println!("FLDR: Time: {:?}, Hist: {:?}", fldr_rng_duration, histogram);
-        fldr_rng_duration
-    };
-
-    assert!(fldr_rng_start < basic_rng_duration);
-}
-
 #[test]
 fn test_entropy() {
     const RANDOM_DISTRIBUTION_COUNT: usize = 10;
@@ -124,7 +43,8 @@ fn test_entropy() {
     // Create a new thread-local PRNG to unbias the testing.
     let mut rng = ThreadRng::default();
     // Use bytes uniformly distributed between 0 and 255.
-    let uniform_distribution = rand::distributions::Uniform::new(0, 256);
+    let uniform_distribution =
+        rand::distr::Uniform::try_from(0..256).expect("Failed to create uniform distribution.");
 
     // Perform a pre-determined number of rolls and record the results.
     for _ in 0..RANDOM_DISTRIBUTION_COUNT {
