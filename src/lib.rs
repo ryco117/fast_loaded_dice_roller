@@ -74,7 +74,14 @@ pub struct Generator {
 impl Generator {
     /// Create a new DDG tree for the FLDR algorithm from a list of non-negative integer weights.
     /// # Panics
-    /// Will panic if `distribution` has less than two non-zero weights.
+    /// Panics if `distribution` has fewer than two non-zero weights.
+    ///
+    /// Panics if the sum of all weights overflows `usize`.
+    ///
+    /// Panics if the next power of two above the total weight sum cannot be represented as a
+    /// `usize` (i.e. the total exceeds `usize::MAX / 2`).
+    ///
+    /// Panics if the internal matrix size (number of tree levels × row stride) overflows `usize`.
     #[must_use]
     pub fn new(distribution: &[usize]) -> Self {
         assert!(
@@ -82,40 +89,52 @@ impl Generator {
             "The distribution must have at least two non-zero weights."
         );
         let bucket_count = distribution.len();
-        let sum: usize = distribution.iter().sum();
+
+        let sum: usize = distribution
+            .iter()
+            .try_fold(0usize, |acc, &w| acc.checked_add(w))
+            .expect("Sum of weights overflows usize.");
+
         let is_power_of_two = sum.is_power_of_two();
 
         // Get the ceiling of the base 2 logarithm of `sum`.
         // This will let us create a binary tree with a depth that is as small as possible while
         // still being able to represent the sum of the weights.
-        let depth: usize = sum.ilog2() as usize + usize::from(!is_power_of_two);
+        let depth = sum.ilog2() + u32::from(!is_power_of_two);
 
-        let a: Vec<_> = if is_power_of_two {
+        let a = if is_power_of_two {
             // Copy the existing distribution to owned memory.
             distribution.to_vec()
         } else {
             // Append an element to the distribution to make the new sum a power of two.
             // As we'll see, this is crucial to utilizing unsigned integer arithmetic to build our
             // DDG tree.
-            (0..=bucket_count)
-                .map(|i| {
-                    if i < bucket_count {
-                        distribution[i]
-                    } else {
-                        (1 << depth) - sum
-                    }
-                })
-                .collect()
+            let adjusted_sum = 1usize
+                .checked_shl(depth)
+                .expect("Adjusted power-of-two sum overflows usize.")
+                - sum;
+            let mut v = Vec::with_capacity(bucket_count + 1);
+            v.extend_from_slice(distribution);
+            v.push(adjusted_sum);
+            v
         };
 
         // Create a matrix to store the labels that occur within each level of the tree,
         // as well as the number of labels in that level.
         // TODO: Try to store this matrix in a sparse representation to save space.
         // However, data locality is important for performance, so we'll need to be careful.
-        let mut level_label_matrix = vec![0; (a.len() + 1) * depth];
+        let stride = a.len() + 1;
+        let matrix_len = stride
+            .checked_mul(depth as usize)
+            .expect("Internal matrix size overflows usize.");
+        let mut level_label_matrix = vec![0; matrix_len];
 
         // Iterate over the levels of the DDG tree and populate them with the appropriate entries.
+        let mut k = 0;
         for j in 0..depth {
+            // Pre-compute the bit position for this level so the inner loop is cheaper.
+            let bit_pos = depth - j - 1;
+
             // Iterate over the labels in the (possibly appended) distribution.
             for (i, &w) in a.iter().enumerate() {
                 // Use the binary expansion of the weight for label `i` to determine the locations
@@ -135,20 +154,17 @@ impl Generator {
                 // *Since we may have added an element to the distribution to make the sum a power
                 // of two, we later use this extra element as a "back-edge" to the root of the tree to
                 // retry the DDG sampling and preserve the distribution among the desired labels.
-                if (w >> (depth - j - 1)) & 1 > 0 {
-                    // Use `k` to index into the start of the level in the matrix.
-                    let k = j * (a.len() + 1);
-
+                if (w >> bit_pos) & 1 > 0 {
                     // Increase the number of labels in the current level.
-                    let count = {
-                        level_label_matrix[k] += 1;
-                        level_label_matrix[k]
-                    };
+                    level_label_matrix[k] += 1;
+                    let count = level_label_matrix[k];
 
                     // Add the label to the current level.
                     level_label_matrix[k + count] = i;
                 }
             }
+
+            k += stride;
         }
 
         Self {
@@ -161,8 +177,10 @@ impl Generator {
     /// Sample a random item from the discrete distribution using a given `FairCoin`.
     /// The item is returned as an index into the initial input distribution.
     pub fn sample(&self, fair_coin: &mut impl FairCoin) -> usize {
-        let mut label_index = 0;
-        let mut level = 0;
+        // Pre-compute the stride once to use additions instead of multiplications in the hot loop.
+        let stride = self.adjusted_bucket_count + 1;
+        let mut label_index = 0usize;
+        let mut k = 0usize;
 
         // Traverse the binary tree with coin flips until a leaf is reached.
         loop {
@@ -172,11 +190,11 @@ impl Generator {
             // Bit shift the index and add the coin toss to choose a random child in the tree.
             label_index = (label_index << 1) + usize::from(toss);
 
-            // Use `k` to index into the start of the level in the matrix.
-            let k = level * (self.adjusted_bucket_count + 1);
+            // Cache the count of labels at this level to avoid a double load.
+            let count = self.level_label_matrix[k];
 
             // Check the index is within the current tree level.
-            if label_index < self.level_label_matrix[k] {
+            if label_index < count {
                 // Check the label here is within the actual distribution and is not the appended value.
                 let j = self.level_label_matrix[k + label_index + 1];
                 if j < self.bucket_count {
@@ -186,13 +204,13 @@ impl Generator {
 
                 // Take a back-edge to the root of the tree/graph.
                 label_index = 0;
-                level = 0;
+                k = 0;
             } else {
                 // Wrap the label index by the level's leaf count.
-                label_index -= self.level_label_matrix[k];
+                label_index -= count;
 
-                // Increase to the next level in the tree.
-                level += 1;
+                // Advance to the next level in the tree.
+                k += stride;
             }
         }
     }
